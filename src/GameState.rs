@@ -1,5 +1,5 @@
 
-#[derive(Component, Resource)]
+#[derive(Resource)]
 struct GameState {
     food: Position,
     snake: Snake,
@@ -7,7 +7,7 @@ struct GameState {
     gameover: bool,
 }
 
-#[derive(Component, Copy, Clone, Eq, PartialEq)]
+#[derive(Resource, Copy, Clone, Eq, PartialEq)]
 enum Direction {
     Up,
     Down,
@@ -15,13 +15,13 @@ enum Direction {
     Right,
 }
 
-#[derive(Component, Clone)]
+#[derive(Resource, Clone)]
 struct Snake {
     head: Position,
     body: Vec<Position>,
 }
 
-#[derive(Component, Clone, Copy, Eq, PartialEq)]
+#[derive(Component, Resource, Clone, Copy, Eq, PartialEq)]
 struct Position {
     x: i32,
     y: i32,
