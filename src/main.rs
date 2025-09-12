@@ -5,8 +5,8 @@ const TILE_SIZE: f32 = 30.0;
 const BOARD_WIDTH: i32 = 20;
 const BOARD_HEIGHT: i32 = 20;
 
-include!("GameState.rs");
-include!("GameBoard.rs");
+include!("game_state.rs");
+include!("display.rs");
 include!("inputs.rs");
 
 fn initialize_game(mut commands: Commands) {
