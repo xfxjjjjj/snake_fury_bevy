@@ -1,14 +1,41 @@
 // Components for visual entities
 #[derive(Component)]
-struct SnakeHead;
+struct SnakeHead {
+    position: Position,
+}
 
-#[derive(Component)]
-struct SnakeSegment {
-    index: usize, // Which segment this is (0 = first body segment)
+impl SnakeHead {
+    fn new(position: Position) -> Self {
+        SnakeHead { position }
+    }
+
+    fn update_position(&mut self, new_pos: Position) {
+        self.position = new_pos;
+    }
 }
 
 #[derive(Component)]
-struct Food;
+struct SnakeSegment {
+    position: Position,
+    index: usize, // Which segment this is (0 = first body segment)
+}
+
+impl SnakeSegment {
+    fn new(position: Position, index: usize) -> Self {
+        SnakeSegment { position, index }
+    }
+}
+
+#[derive(Component)]
+struct Food {
+    position: Position,
+}
+
+impl Food {
+    fn new(position: Position) -> Self {
+        Food { position }
+    }
+}
 
 #[derive(Resource)]
 struct GameBoard {
@@ -22,114 +49,66 @@ impl GameBoard {
     }
 }
 
-fn init_display(
-    commands: &mut Commands,
-    initial_snake: &Snake,
-    initial_food: &Position,
-) {
-    // Spawn snake head
+// Initialize the visual display
+fn init_display(commands: &mut Commands) {
+    // Spawn initial snake head
+    let initial_head_pos = Position { x: 10, y: 10 };
     commands.spawn((
         Sprite {
             color: Color::srgb(0.0, 1.0, 0.0), // Green
             custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
             ..default()
         },
-        Transform::from_translation(position_to_world_coords(initial_snake.head)),
-        SnakeHead,
-        initial_snake.head, // Position component attached!
+        Transform::from_translation(position_to_world_coords(initial_head_pos)),
+        SnakeHead::new(initial_head_pos),
     ));
 
-    // Spawn snake body segments
-    for (index, &pos) in initial_snake.body.iter().enumerate() {
+    // Spawn initial snake body segments (2 segments behind head)
+    for i in 0..2 {
+        let segment_pos = Position { x: 9 - i, y: 10 };
         commands.spawn((
             Sprite {
                 color: Color::srgb(0.0, 0.8, 0.0), // Darker green
                 custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
                 ..default()
             },
-            Transform::from_translation(position_to_world_coords(pos)),
-            SnakeSegment { index },
-            pos, // Position component attached!
+            Transform::from_translation(position_to_world_coords(segment_pos)),
+            SnakeSegment::new(segment_pos, i as usize),
         ));
     }
 
-    // Spawn food
+    // Spawn initial food
+    let initial_food_pos = Position { x: 5, y: 5 };
     commands.spawn((
         Sprite {
             color: Color::srgb(1.0, 0.0, 0.0), // Red
             custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
             ..default()
         },
-        Transform::from_translation(position_to_world_coords(*initial_food)),
-        Food,
-        *initial_food, // Position component attached!
+        Transform::from_translation(position_to_world_coords(initial_food_pos)),
+        Food::new(initial_food_pos),
     ));
 }
 
-// TODO: Boilerplate removal
-// Only change what actually moved
+// This system updates visual transforms when component positions change
 fn update_visual(
-    mut commands: Commands,
-    state: Res<GameState>,
-    mut head_query: Query<(&mut Transform, &mut Position), (With<SnakeHead>, Without<SnakeSegment>, Without<Food>)>,
-    mut body_query: Query<(Entity, &mut Transform, &mut Position, &SnakeSegment), (With<SnakeSegment>, Without<SnakeHead>, Without<Food>)>,
-    mut food_query: Query<(&mut Transform, &mut Position), (With<Food>, Without<SnakeHead>, Without<SnakeSegment>)>,
+    mut head_query: Query<(&mut Transform, &SnakeHead), Changed<SnakeHead>>,
+    mut segment_query: Query<(&mut Transform, &SnakeSegment), (Changed<SnakeSegment>, Without<SnakeHead>)>,
+    mut food_query: Query<(&mut Transform, &Food), (Changed<Food>, Without<SnakeHead>, Without<SnakeSegment>)>,
 ) {
-    if !state.is_changed() {
-        return;
+    // Update snake head visual position when component position changes
+    for (mut transform, head) in head_query.iter_mut() {
+        transform.translation = position_to_world_coords(head.position);
     }
 
-    // Update snake head
-    if let Ok((mut head_transform, mut head_pos)) = head_query.single_mut() {
-        if *head_pos != state.snake.head {
-            *head_pos = state.snake.head;
-            head_transform.translation = position_to_world_coords(*head_pos);
-        }
+    // Update snake segment visual positions when component positions change
+    for (mut transform, segment) in segment_query.iter_mut() {
+        transform.translation = position_to_world_coords(segment.position);
     }
 
-    // Get current body segments, sorted by index
-    let mut segments: Vec<_> = body_query.iter_mut().collect();
-    segments.sort_by_key(|(_, _, _, seg)| seg.index);
-
-    let current_len = segments.len();
-    let target_len = state.snake.body.len();
-
-    // Update existing segments
-    for (i, &target_pos) in state.snake.body.iter().enumerate() {
-        if i < current_len {
-            let (_, ref mut transform, ref mut pos, _) = segments[i];
-            if **pos != target_pos {
-                **pos = target_pos;
-                transform.translation = position_to_world_coords(**pos);
-            }
-        } else {
-            // Spawn new segment (snake grew)
-            commands.spawn((
-                Sprite {
-                    color: Color::srgb(0.0, 0.8, 0.0),
-                    custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
-                    ..default()
-                },
-                Transform::from_translation(position_to_world_coords(target_pos)),
-                SnakeSegment { index: i },
-                target_pos,
-            ));
-        }
-    }
-
-    // Remove excess segments (if snake somehow shrunk)
-    for i in target_len..current_len {
-        if let Some((entity, _, _, _)) = segments.get(i) {
-            commands.entity(*entity).despawn();
-        }
-    }
-
-    // Update food
-    if let Ok((mut food_transform, mut food_pos)) = food_query.single_mut() {
-        if *food_pos != state.food {
-            *food_pos = state.food;
-            food_transform.translation = position_to_world_coords(*food_pos);
-        }
+    // Update food visual position when component position changes
+    for (mut transform, food) in food_query.iter_mut() {
+        transform.translation = position_to_world_coords(food.position);
     }
 }
 

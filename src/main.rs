@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use rand;
 
 // Constants for rendering
 const TILE_SIZE: f32 = 30.0;
@@ -15,61 +16,18 @@ fn initialize_game(mut commands: Commands) {
 
     // Initialize game resources
     commands.insert_resource(GameBoard::new(BOARD_WIDTH, BOARD_HEIGHT));
+    commands.insert_resource(GameState::new());
 
-    let initial_snake = Snake::new(Position { x: 10, y: 10 });
-    let initial_food = Position { x: 5, y: 5 };
-
-    commands.insert_resource(GameState {
-        food: initial_food,
-        snake: initial_snake.clone(),
-        direction: Direction::Right,
-        gameover: false,
-    });
-
-    init_display(&mut commands, &initial_snake, &initial_food);
-}
-
-// TODO: Refactor these two functions
-fn new_position(board: &GameBoard) -> Position {
-    Position {
-        x: rand::random::<i32>() % board.width,
-        y: rand::random::<i32>() % board.height
-    }
-}
-
-fn new_apple(state: &GameState, board: &GameBoard) -> Position {
-    let mut pos = new_position(board);
-    while state.snake.body.contains(&pos) || pos == state.snake.head {
-        pos = new_position(board);
-    }
-    pos
-}
-
-fn step(board: Res<GameBoard>,
-        mut state: ResMut<GameState>
-) {
-    let prev_head = state.snake.head;
-    let new_head = prev_head + state.direction;
-
-    // Check for collisions
-    if state.snake.body.contains(&new_head) {
-        state.gameover = true;
-    } // Check for food
-    else if new_head == state.food {
-        state.snake.extends(new_head);
-        state.food = new_apple(&state, &board);
-    } // Normal move
-    else {
-        state.snake.move_to(new_head);
-    }
+    // Initialize the visual display
+    init_display(&mut commands);
 }
 
 
 #[derive(SystemSet, Clone, Debug, Hash, PartialEq, Eq)]
 enum GameSet {
     CheckInput,
-    Step,
-    Render
+    CheckStep,
+    Execute
 }
 
 fn main() {
@@ -83,15 +41,15 @@ fn main() {
             FixedUpdate,
             (
                 GameSet::CheckInput,
-                GameSet::Step,
-                GameSet::Render
+                GameSet::CheckStep,
+                GameSet::Execute
             ).chain()
         )
         .add_systems(Update, direction_input)
         .add_systems(FixedUpdate, (
             check_input.in_set(GameSet::CheckInput),
-            step.in_set(GameSet::Step),
-            update_visual.in_set(GameSet::Render)
+            step.in_set(GameSet::CheckStep),
+            update_visual.in_set(GameSet::Execute)
         ))
         // TODO: dynamic speed calculation
         .insert_resource(Time::<Fixed>::from_seconds(0.25))
