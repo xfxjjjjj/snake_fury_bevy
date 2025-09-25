@@ -19,7 +19,7 @@ enum Direction {
     Right,
 }
 
-#[derive(Component, Resource, Clone, Copy, Eq, PartialEq)]
+#[derive(Component, Resource, Clone, Copy, Eq, PartialEq, Debug)]
 struct Position {
     x: i32,
     y: i32,
@@ -94,8 +94,7 @@ fn step(
     mut segment_query: Query<&mut SnakeSegment>,
     mut food_query: Query<&mut Food>,
     mut state: ResMut<GameState>,
-    board: Res<GameBoard>,
-    mut commands: Commands
+    board: Res<GameBoard>
 ) {
     if let Ok(mut head) = head_query.single_mut() {
         let new_head_pos = head.position + state.direction;
@@ -125,18 +124,6 @@ fn step(
                 // Move head to food position
                 head.update_position(new_head_pos);
 
-                // Add new body segment at old head position
-                let new_segment_index = segment_query.iter().count();
-                commands.spawn((
-                    Sprite {
-                        color: Color::srgb(0.0, 0.8, 0.0),
-                        custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
-                        ..default()
-                    },
-                    Transform::from_translation(position_to_world_coords(head.position)),
-                    SnakeSegment::new(head.position, new_segment_index),
-                ));
-
                 // Generate new food position
                 let segments: Vec<&SnakeSegment> = segment_query.iter().collect();
                 food.position = get_new_apple_position(&board, head.position, &segments);
@@ -160,4 +147,30 @@ fn step(
             }
         }
     }
+}
+
+fn insert_new_segment(
+    mut commands: Commands,
+    head_query: Query<&SnakeHead>,
+    segment_query: Query<&SnakeSegment>
+) {
+    // TODO: Snake head here is updated, we need old head position
+    // IDEA: Use a queue in the GameState to track snake positions
+    if let Ok(head) = head_query.single() {
+        // Add new body segment at old head position
+        let new_segment_index = segment_query.iter().count();
+        commands.spawn((
+            Sprite {
+                color: Color::srgb(0.0, 0.8, 0.0),
+                custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
+                ..default()
+            },
+            Transform::from_translation(position_to_world_coords(head.position)),
+            SnakeSegment::new(head.position, new_segment_index),
+        ));
+    }
+}
+
+fn snake_growing(state: Res<GameState>) -> bool {
+    state.action == Action::Grow
 }

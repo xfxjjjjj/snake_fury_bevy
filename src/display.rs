@@ -1,5 +1,5 @@
 // Components for visual entities
-#[derive(Component)]
+#[derive(Component, Debug)]
 struct SnakeHead {
     position: Position,
 }
@@ -63,19 +63,6 @@ fn init_display(commands: &mut Commands) {
         SnakeHead::new(initial_head_pos),
     ));
 
-    // Spawn initial snake body segments (2 segments behind head)
-    for i in 0..2 {
-        let segment_pos = Position { x: 9 - i, y: 10 };
-        commands.spawn((
-            Sprite {
-                color: Color::srgb(0.0, 0.8, 0.0), // Darker green
-                custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
-                ..default()
-            },
-            Transform::from_translation(position_to_world_coords(segment_pos)),
-            SnakeSegment::new(segment_pos, i as usize),
-        ));
-    }
 
     // Spawn initial food
     let initial_food_pos = Position { x: 5, y: 5 };
@@ -90,22 +77,28 @@ fn init_display(commands: &mut Commands) {
     ));
 }
 
-// This system updates visual transforms when component positions change
-fn update_visual(
+fn update_head_visual(
     mut head_query: Query<(&mut Transform, &SnakeHead), Changed<SnakeHead>>,
-    mut segment_query: Query<(&mut Transform, &SnakeSegment), (Changed<SnakeSegment>, Without<SnakeHead>)>,
-    mut food_query: Query<(&mut Transform, &Food), (Changed<Food>, Without<SnakeHead>, Without<SnakeSegment>)>,
 ) {
     // Update snake head visual position when component position changes
     for (mut transform, head) in head_query.iter_mut() {
         transform.translation = position_to_world_coords(head.position);
+        println!("Head moved to: {:?}", head.position);
     }
+}
 
+fn update_segment_visual(
+    mut segment_query: Query<(&mut Transform, &SnakeSegment), Changed<SnakeSegment>>,
+) {
     // Update snake segment visual positions when component positions change
     for (mut transform, segment) in segment_query.iter_mut() {
         transform.translation = position_to_world_coords(segment.position);
     }
+}
 
+fn update_food_visual(
+    mut food_query: Query<(&mut Transform, &Food), Changed<Food>>,
+) {
     // Update food visual position when component position changes
     for (mut transform, food) in food_query.iter_mut() {
         transform.translation = position_to_world_coords(food.position);

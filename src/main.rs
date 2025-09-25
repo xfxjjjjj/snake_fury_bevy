@@ -49,7 +49,9 @@ fn main() {
         .add_systems(FixedUpdate, (
             check_input.in_set(GameSet::CheckInput),
             step.in_set(GameSet::CheckStep),
-            update_visual.in_set(GameSet::Execute)
+            (update_food_visual, update_head_visual, update_segment_visual,
+            insert_new_segment.run_if(snake_growing))
+            .chain().in_set(GameSet::Execute)
         ))
         // TODO: dynamic speed calculation
         .insert_resource(Time::<Fixed>::from_seconds(0.25))
