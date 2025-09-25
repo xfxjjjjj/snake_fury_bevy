@@ -43,10 +43,23 @@ struct GameBoard {
     height: i32,
 }
 
+// Marker to identify score text entity
+#[derive(Component)]
+struct ScoreText;
+
+
 impl GameBoard {
     fn new (width: i32, height: i32) -> Self {
         GameBoard { width, height }
     }
+}
+
+fn init_score(commands: &mut Commands) {
+    commands.spawn(Text::new("Score: "))
+            .with_child(
+                (TextSpan::default(),
+                ScoreText)
+            );
 }
 
 // Initialize the visual display
@@ -83,7 +96,6 @@ fn update_head_visual(
     // Update snake head visual position when component position changes
     for (mut transform, head) in head_query.iter_mut() {
         transform.translation = position_to_world_coords(head.position);
-        println!("Head moved to: {:?}", head.position);
     }
 }
 
@@ -102,6 +114,15 @@ fn update_food_visual(
     // Update food visual position when component position changes
     for (mut transform, food) in food_query.iter_mut() {
         transform.translation = position_to_world_coords(food.position);
+    }
+}
+
+fn update_score(
+    state: Res<GameState>,
+    mut query: Query<&mut TextSpan, With<ScoreText>>,
+) {
+    for mut span in &mut query {
+        **span = format!("Score: {}", state.score);
     }
 }
 

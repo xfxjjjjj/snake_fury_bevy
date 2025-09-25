@@ -171,6 +171,16 @@ fn insert_new_segment(
     }
 }
 
+fn clean_up<T: Component>(
+    mut commands: Commands,
+    head_query: Query<Entity, With<T>>
+) {
+    for entity in head_query.iter() {
+        commands.entity(entity).despawn();
+    }
+}
+
+
 fn snake_growing(state: Res<GameState>) -> bool {
     state.action == Action::Grow
 }

@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*};
 use rand;
 
 // Constants for rendering
@@ -18,6 +18,8 @@ fn initialize_game(mut commands: Commands) {
     commands.insert_resource(GameBoard::new(BOARD_WIDTH, BOARD_HEIGHT));
     commands.insert_resource(GameState::new());
 
+    // Initialize score presentation
+    init_score(&mut commands);
     // Initialize the visual display
     init_display(&mut commands);
 }
@@ -49,11 +51,16 @@ fn main() {
         .add_systems(FixedUpdate, (
             check_input.in_set(GameSet::CheckInput),
             step.in_set(GameSet::CheckStep),
-            (update_food_visual, update_head_visual, update_segment_visual,
+            (update_food_visual, update_head_visual,
+             update_segment_visual, update_score,
             insert_new_segment.run_if(snake_growing))
             .chain().in_set(GameSet::Execute)
         ))
         // TODO: dynamic speed calculation
         .insert_resource(Time::<Fixed>::from_seconds(0.25))
+        .add_systems(Update, (clean_up::<SnakeHead>,
+                                                clean_up::<SnakeSegment>,
+                                                clean_up::<Food>)
+            .run_if(|state: Res<GameState>| state.action == Action::GameOver))
         .run();
 }
