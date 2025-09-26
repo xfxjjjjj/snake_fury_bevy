@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 enum Action {
     Move,
@@ -9,6 +11,7 @@ struct GameState {
     score: u32,
     direction: Direction,
     action: Action,
+    segment_queue: VecDeque<Position>,
 }
 
 #[derive(Resource, Copy, Clone, Eq, PartialEq)]
@@ -44,6 +47,7 @@ impl GameState {
             score: 0,
             direction: Direction::Right,
             action: Action::Move,
+            segment_queue: VecDeque::new(),
         }
     }
 }
@@ -59,31 +63,11 @@ fn new_position(board: &GameBoard) -> Position {
 fn get_new_apple_position(
     board: &GameBoard,
     head_pos: Position,
-    segments: &[&SnakeSegment]
+    segments: Vec<Position>
 ) -> Position {
     let mut pos = new_position(board);
 
-    loop {
-        let mut valid = true;
-
-        // Check against head
-        if head_pos == pos {
-            valid = false;
-        }
-
-        // Check against body segments
-        if valid {
-            for segment in segments {
-                if segment.position == pos {
-                    valid = false;
-                    break;
-                }
-            }
-        }
-
-        if valid {
-            break;
-        }
+    while head_pos == pos || segments.contains(&pos) {
         pos = new_position(board);
     }
     pos
@@ -114,61 +98,59 @@ fn step(
             }
         }
 
+        let tail_position = state.segment_queue
+                                           .pop_back()
+                                           .unwrap_or(head.position);
+        if !segment_query.is_empty() {
+            let mut tail_query = segment_query.iter_mut()
+                .find(|s| s.position == tail_position)
+                .unwrap();
+
+            tail_query.update_position(head.position);
+            state.segment_queue.push_front(head.position);
+        }
+
         // Check for food collision
-        if let Ok(mut food) = food_query.single_mut() {
-            if new_head_pos == food.position {
+        if let Ok(mut food) = food_query.single_mut() &&
+           new_head_pos == food.position {
                 // Eat food and grow
                 state.action = Action::Grow;
                 state.score += 1;
 
-                // Move head to food position
-                head.update_position(new_head_pos);
-
                 // Generate new food position
-                let segments: Vec<&SnakeSegment> = segment_query.iter().collect();
-                food.position = get_new_apple_position(&board, head.position, &segments);
-            } else {
-                // Just move - shift all segments
-                state.action = Action::Move;
+                let segments: Vec<Position> = segment_query.iter()
+                    .map(|s| s.position).collect();
+                food.position =
+                    get_new_apple_position(&board, head.position, segments);
 
-                // Collect all segments sorted by index
-                let mut segments: Vec<_> = segment_query.iter_mut().collect();
-                segments.sort_by_key(|segment| segment.index);
-
-                // Move each segment to the position of the one in front of it
-                let mut prev_pos = head.position;
-                head.update_position(new_head_pos);
-
-                for segment in segments.iter_mut() {
-                    let current_pos = segment.position;
-                    segment.position = prev_pos;
-                    prev_pos = current_pos;
-                }
-            }
+                state.segment_queue.push_back(tail_position);
+        } else {
+            state.action = Action::Move;
         }
+
+        head.update_position(new_head_pos);
     }
 }
 
 fn insert_new_segment(
     mut commands: Commands,
-    head_query: Query<&SnakeHead>,
-    segment_query: Query<&SnakeSegment>
+    state: Res<GameState>,
 ) {
-    // TODO: Snake head here is updated, we need old head position
-    // IDEA: Use a queue in the GameState to track snake positions
-    if let Ok(head) = head_query.single() {
-        // Add new body segment at old head position
-        let new_segment_index = segment_query.iter().count();
-        commands.spawn((
-            Sprite {
-                color: Color::srgb(0.0, 0.8, 0.0),
-                custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
-                ..default()
-            },
-            Transform::from_translation(position_to_world_coords(head.position)),
-            SnakeSegment::new(head.position, new_segment_index),
-        ));
-    }
+    let new_segment_pos = state.segment_queue
+        .back()
+        .cloned()
+        .unwrap_or(Position { x: 0, y: 0 });
+
+    // TODO: Refactor these into a bundle
+    commands.spawn((
+        Sprite {
+            color: Color::srgb(0.0, 0.5, 0.0), // Dark Green
+            custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
+            ..default()
+        },
+        Transform::from_translation(position_to_world_coords(new_segment_pos)),
+        SnakeSegment::new(new_segment_pos),
+    ));
 }
 
 fn clean_up<T: Component>(

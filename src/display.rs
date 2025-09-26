@@ -16,13 +16,15 @@ impl SnakeHead {
 
 #[derive(Component)]
 struct SnakeSegment {
-    position: Position,
-    index: usize, // Which segment this is (0 = first body segment)
+    position: Position
 }
 
 impl SnakeSegment {
-    fn new(position: Position, index: usize) -> Self {
-        SnakeSegment { position, index }
+    fn new(position: Position) -> Self {
+        SnakeSegment { position }
+    }
+    fn update_position(&mut self, new_pos: Position) {
+        self.position = new_pos;
     }
 }
 
