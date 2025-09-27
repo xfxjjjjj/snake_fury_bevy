@@ -28,15 +28,26 @@ struct Position {
     y: i32,
 }
 
-impl std::ops::Add<Direction> for Position {
-    type Output = Position;
+impl Position {
 
-    fn add(self, dir: Direction) -> Position {
+    fn new(x: i32, y: i32) -> Self {
+        Position { x, y }
+    }
+
+    fn to_world_coords(&self) -> Vec3 {
+        Vec3::new(
+            (self.x as f32 - BOARD_WIDTH as f32 / 2.0) * TILE_SIZE,
+            (self.y as f32 - BOARD_HEIGHT as f32 / 2.0) * TILE_SIZE,
+            1.0,
+        )
+    }
+
+    fn move_towards(self, dir: Direction) -> Position {
         match dir {
-            Direction::Up => Position { x: self.x, y: self.y + 1 },
-            Direction::Down => Position { x: self.x, y: self.y - 1 },
-            Direction::Left => Position { x: self.x - 1, y: self.y },
-            Direction::Right => Position { x: self.x + 1, y: self.y },
+            Direction::Up => Position::new(self.x, self.y + 1),
+            Direction::Down => Position::new(self.x, self.y - 1),
+            Direction::Left => Position::new(self.x - 1, self.y),
+            Direction::Right => Position::new(self.x + 1, self.y),
         }
     }
 }
@@ -52,23 +63,23 @@ impl GameState {
     }
 }
 
-fn new_position(board: &GameBoard) -> Position {
-    Position {
-        x: (rand::random::<i32>() % board.width).abs(),
-        y: (rand::random::<i32>() % board.height).abs()
-    }
+fn random_pos(board: &GameBoard) -> Position {
+    Position::new(
+        (rand::random::<i32>() % board.width).abs(),
+        (rand::random::<i32>() % board.height).abs()
+    )
 }
 
-// Helper function to get new apple position with correct query types
+// Helper function to get new apple position, avoiding collisions
 fn get_new_apple_position(
     board: &GameBoard,
     head_pos: Position,
     segments: Vec<Position>
 ) -> Position {
-    let mut pos = new_position(board);
+    let mut pos = random_pos(board);
 
     while head_pos == pos || segments.contains(&pos) {
-        pos = new_position(board);
+        pos = random_pos(board);
     }
     pos
 }
@@ -81,7 +92,7 @@ fn step(
     board: Res<GameBoard>
 ) {
     if let Ok(mut head) = head_query.single_mut() {
-        let new_head_pos = head.position + state.direction;
+        let new_head_pos = head.position.move_towards(state.direction);
 
         // Check for wall collisions
         if new_head_pos.x < 0 || new_head_pos.x >= board.width ||
@@ -130,27 +141,6 @@ fn step(
 
         head.update_position(new_head_pos);
     }
-}
-
-fn insert_new_segment(
-    mut commands: Commands,
-    state: Res<GameState>,
-) {
-    let new_segment_pos = state.segment_queue
-        .back()
-        .cloned()
-        .unwrap_or(Position { x: 0, y: 0 });
-
-    // TODO: Refactor these into a bundle
-    commands.spawn((
-        Sprite {
-            color: Color::srgb(0.0, 0.5, 0.0), // Dark Green
-            custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
-            ..default()
-        },
-        Transform::from_translation(position_to_world_coords(new_segment_pos)),
-        SnakeSegment::new(new_segment_pos),
-    ));
 }
 
 fn clean_up<T: Component>(
